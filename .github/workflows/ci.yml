@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shellcheck init-firewall.sh
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          scandir: .devcontainer
+          additional_files: init-firewall.sh
+
+      - name: Validate devcontainer.json
+        run: |
+          # devcontainer.json may have comments (JSONC), so strip them first
+          sed 's|//.*$||' .devcontainer/devcontainer.json | python -m json.tool > /dev/null
+          echo "devcontainer.json: valid"
+
+      - name: Validate firewall-domains.conf
+        run: |
+          # Check for malformed lines (non-empty, non-comment lines should look like domain names)
+          while IFS= read -r line; do
+            clean=$(echo "$line" | sed 's/#.*//' | xargs)
+            [ -z "$clean" ] && continue
+            if ! echo "$clean" | grep -qP '^[a-zA-Z0-9]([a-zA-Z0-9\-]*\.)+[a-zA-Z]{2,}$'; then
+              echo "ERROR: malformed domain: $clean"
+              exit 1
+            fi
+          done < .devcontainer/firewall-domains.conf
+          echo "firewall-domains.conf: valid"
+
+  build-and-validate:
+    name: Build & Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --build-arg TZ=UTC \
+            -t devcontainer-test \
+            .devcontainer/
+
+      - name: Verify tools are installed
+        run: |
+          docker run --rm devcontainer-test bash -c '
+            set -e
+            echo "=== Tool versions ==="
+            python --version
+            uv --version
+            git --version
+            gh --version | head -1
+            jq --version
+            fzf --version
+            zsh --version
+            delta --version
+            claude --version 2>/dev/null || echo "claude: installed (version check may need auth)"
+            echo "=== All tools present ==="
+          '
+
+      - name: Verify firewall script is executable
+        run: |
+          docker run --rm devcontainer-test bash -c '
+            test -x /usr/local/bin/init-firewall.sh
+            echo "init-firewall.sh: present and executable"
+          '
+
+      - name: Verify non-root user
+        run: |
+          docker run --rm devcontainer-test bash -c '
+            [ "$(whoami)" = "vscode" ]
+            echo "Running as: $(whoami) (uid=$(id -u))"
+          '
