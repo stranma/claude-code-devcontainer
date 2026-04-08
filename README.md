@@ -1,77 +1,39 @@
-# claude-code-devcontainer
+# claude-code-devcontainer [DEPRECATED]
 
-Secure Python devcontainer for Claude Code with network egress firewall.
+> **This repo is deprecated.** Use [trailofbits/claude-code-devcontainer](https://github.com/trailofbits/claude-code-devcontainer) instead -- it provides a more mature solution with OAuth token forwarding, `devc` CLI for lifecycle management, and better security isolation.
 
-## What's Included
+## Migration
 
-- **Python 3.12** (Debian Bookworm) with `uv` package manager
-- **Claude Code CLI** (native installer)
-- **Egress firewall** (iptables whitelist: PyPI, GitHub, Anthropic, VS Code, Astral)
-- **VS Code extensions**: Python, Pylance, Ruff, Debugpy, GitLens, Claude Code
-- **Shell**: zsh with Powerlevel10k, fzf, git-delta
-- **Non-root user** (`vscode`, UID 1000) with restricted sudo (firewall only)
+1. Install the Trail of Bits devcontainer:
+   ```bash
+   git clone https://github.com/trailofbits/claude-code-devcontainer
+   cd claude-code-devcontainer
+   bash install.sh self-install
+   ```
 
-## Usage
+2. Set up auth on your host:
+   ```bash
+   claude setup-token
+   ```
 
-### Option 1: Copy into your project
+3. Use `devc` to manage containers:
+   ```bash
+   devc .              # Install template + start
+   devc up             # Start
+   devc shell          # Open shell
+   devc rebuild        # Clean rebuild
+   devc destroy        # Remove all resources
+   ```
 
-```bash
-cp -r .devcontainer/ /path/to/your/project/.devcontainer/
-cp .gitattributes /path/to/your/project/.gitattributes
-```
+## Why Trail of Bits?
 
-### Option 2: Git submodule
+| Feature | This repo | Trail of Bits |
+|---------|-----------|---------------|
+| Auth handling | Manual login each time | OAuth token forwarding |
+| CLI tool | None | `devc` (rebuild, sync, mount, upgrade) |
+| Config persistence | Named volume only | Volume + auto-seeded settings |
+| Firewall | Strict iptables whitelist | Optional, manual iptables |
+| Base image | Python 3.12 Bookworm | Ubuntu 24.04 + Python 3.13 |
+| Dev tools | git-delta, fzf, gh | ripgrep, fd, tmux, fzf, delta, ast-grep |
 
-```bash
-cd /path/to/your/project
-git submodule add <repo-url> .devcontainer-upstream
-# Then symlink or copy what you need
-```
-
-## Configuration
-
-### Python version
-
-Edit `.devcontainer/Dockerfile` line 1:
-
-```dockerfile
-FROM python:3.12-bookworm  # Change to 3.11, 3.13, etc.
-```
-
-### Firewall domains
-
-Add extra domains to `.devcontainer/firewall-domains.conf`:
-
-```
-registry.npmjs.org
-dl.google.com
-```
-
-Changes take effect on container restart.
-
-### Inbound traffic
-
-By default, inbound traffic is permissive (Docker handles isolation). For strict inbound filtering:
-
-```bash
-# Set in your shell or .env before opening the devcontainer
-export FIREWALL_ALLOW_INBOUND=false
-```
-
-## Architecture
-
-```
-.devcontainer/
-  Dockerfile              Python base image, tools, Claude Code CLI
-  devcontainer.json        VS Code integration, mounts, env vars
-  init-firewall.sh         iptables egress whitelist
-  firewall-domains.conf    Extra domains to whitelist (user-editable)
-.gitattributes             LF line endings for container files
-```
-
-The firewall runs at container start (`postStartCommand`). It:
-1. Fetches GitHub IP ranges from the API
-2. Resolves built-in domains (PyPI, Anthropic, VS Code, etc.)
-3. Resolves extra domains from `firewall-domains.conf`
-4. Sets DROP policy on all other egress
-5. Verifies by testing that `example.com` is blocked and `api.github.com` is reachable
+If you need the strict egress firewall from this repo, you can add `init-firewall.sh` and `firewall-domains.conf` to a Trail of Bits setup as a `postStartCommand`.
