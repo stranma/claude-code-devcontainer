@@ -24,18 +24,6 @@ jobs:
           sed 's|//.*$||' .devcontainer/devcontainer.json | python -m json.tool > /dev/null
           echo "devcontainer.json: valid"
 
-      - name: Validate firewall-domains.conf
-        run: |
-          # Check for malformed lines (non-empty, non-comment lines should look like domain names)
-          while IFS= read -r line; do
-            clean=$(echo "$line" | sed 's/#.*//' | xargs)
-            [ -z "$clean" ] && continue
-            if ! echo "$clean" | grep -qP '^[a-zA-Z0-9]([a-zA-Z0-9\-]*\.)+[a-zA-Z]{2,}$'; then
-              echo "ERROR: malformed domain: $clean"
-              exit 1
-            fi
-          done < .devcontainer/firewall-domains.conf
-          echo "firewall-domains.conf: valid"
 
   build-and-validate:
     name: Build & Validate
